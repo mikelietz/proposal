@@ -2,6 +2,8 @@
 
 class ProposalPlugin extends Plugin
 {
+	const DOCUSIGN_VERSION = '1';
+
 	public function action_plugin_activation( $plugin_file )
 	{
 		Post::add_new_type( 'proposal' );
@@ -31,10 +33,65 @@ class ProposalPlugin extends Plugin
 		}
 
 		$form = new FormUI( 'proposal' );
-		$form->append( new FormControlSelect('type', 'staff__group', 'Group To Use for Staff', $groups_array));
-		$form->append( new FormControlSubmit('save', _t( 'Save' )));
 
+		$form->append( new FormControlSelect('type', 'staff__group', 'Group To Use for Staff', $groups_array));
+
+		if( Options::get( 'docusign__baseurl', false ) === false ) {
+
+		$form->append( 'fieldset', 'docusign_credentials', 'DocuSign Credentials' );
+
+		$form->docusign_credentials->append( new FormControlText('username', 'null:null', _t( 'Username' )))->add_validator( 'validate_required' );
+		$form->docusign_credentials->append( new FormControlPassword('password', "null:null", _t( 'Password' )))->add_validator( 'validate_required' );
+		$form->docusign_credentials->append( new FormControlText('key', "null:null", _t( 'Integrator Key' )))->add_validator( 'validate_required' )->add_validator( array( $this, 'validate_credentials' ) );
+		$form->docusign_credentials->append( new FormControlSelect('docusite', "null:null", 'DocuSign Environment', array( "https://demo.docusign.net/" => "https://demo.docusign.net/", "https://www.docusign.net/" => "https://www.docusign.net/" )));
+		}
+
+		$form->append( new FormControlSubmit('save', _t( 'Save' )));
 		return $form;
+	}
+
+	public function validate_credentials( $key, $control, $form )
+	{
+		$docusign_auth = "X-DocuSign-Authentication: <DocuSignCredentials>" .
+					"<Username>{$form->username->value}</Username>" .
+					"<Password>{$form->password->value}</Password>" .
+					"<IntegratorKey>{$form->key->value}</IntegratorKey>" .
+					"</DocuSignCredentials>";
+
+		$ch = curl_init();
+		$headers = array(
+			"Accept: application/json",
+			"Content-Type: application/json",
+			"Content-Length: 0",
+			$docusign_auth
+			);
+
+		$url = $form->docusite->value . "restapi/v" . self::DOCUSIGN_VERSION . "/login_information";
+		curl_setopt( $ch, CURLOPT_URL, $url );
+		curl_setopt( $ch, CURLOPT_HTTPHEADER, $headers );
+		curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+
+		try {
+
+		$file = curl_exec( $ch );
+
+		curl_close( $ch );
+
+		$json_response = json_decode( $file );
+
+		}
+		catch ( Exception $e ) {
+			return array( _t( 'Authentication failed. DocuSign response was; "%s"', array( $e->getMessage() )));
+
+		}
+
+		if( isset( $json_response->message ) ) {
+			return array( _t( 'Authentication failed. DocuSign response was; "%s"', array( $json_response->message )));
+		}
+
+		Options::set( 'docusign__baseurl', $json_response->loginAccounts[0]->baseUrl );
+
+		return array();
 	}
 
 	public function action_init()
