@@ -45,7 +45,10 @@ class ProposalPlugin extends Plugin
 		$form->docusign_credentials->append( new FormControlText('key', "null:null", _t( 'Integrator Key' )))->add_validator( 'validate_required' )->add_validator( array( $this, 'validate_credentials' ) );
 		$form->docusign_credentials->append( new FormControlSelect('docusite', "null:null", 'DocuSign Environment', array( "https://demo.docusign.net/" => "https://demo.docusign.net/", "https://www.docusign.net/" => "https://www.docusign.net/" )));
 		}
+		else {
+		$form->append( new FormControlStatic( 'baseurl', "<div class='formcontrol'><label>Base URL: <tt>" . Options::get( 'docusign__baseurl' ) . "</tt></label></div>" ) );
 
+		}
 		$form->append( new FormControlSubmit('save', _t( 'Save' )));
 		return $form;
 	}
@@ -71,10 +74,11 @@ class ProposalPlugin extends Plugin
 		curl_setopt( $ch, CURLOPT_HTTPHEADER, $headers );
 		curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
 
+		// is something wrong with their certificate?
+		curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, false );
+
 		try {
-
 		$file = curl_exec( $ch );
-
 		curl_close( $ch );
 
 		$json_response = json_decode( $file );
@@ -88,7 +92,6 @@ class ProposalPlugin extends Plugin
 		if( isset( $json_response->message ) ) {
 			return array( _t( 'Authentication failed. DocuSign response was; "%s"', array( $json_response->message )));
 		}
-
 		Options::set( 'docusign__baseurl', $json_response->loginAccounts[0]->baseUrl );
 
 		return array();
