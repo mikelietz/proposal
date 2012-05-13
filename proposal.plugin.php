@@ -53,6 +53,12 @@ class ProposalPlugin extends Plugin
 		return $form;
 	}
 
+	/*
+	 * Intercept the FormUI form containing DocuSign username, password, and Integrator key,
+	 * and if they are valid, store the specified baseurl in the database.
+	 * Credentials are also stored as a pseudo-XML string, since both baseurl and
+	 * credentials header are used for requests.
+	 */
 	public function validate_credentials( $key, $control, $form )
 	{
 		$docusign_auth = "X-DocuSign-Authentication: <DocuSignCredentials>" .
@@ -93,6 +99,7 @@ class ProposalPlugin extends Plugin
 			return array( _t( 'Authentication failed. DocuSign response was; "%s"', array( $json_response->message )));
 		}
 		Options::set( 'docusign__baseurl', $json_response->loginAccounts[0]->baseUrl );
+		Options::set( 'docusign__authentication', $docusign_auth );
 
 		return array();
 	}
